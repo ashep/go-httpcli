@@ -28,7 +28,7 @@ import (
 var DefaultUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
 	"(KHTML, like Gecko) Chrome/86.0.4240.75 Safari/537.36"
 
-type Cli struct {
+type Client struct {
 	id           string
 	userAgents   []string
 	proxyURLs    []string
@@ -45,10 +45,10 @@ type Cli struct {
 }
 
 // ErrorHandler is HTTP request error handler
-type ErrorHandler func(ctx context.Context, c *Cli, req *http.Request, rsp *http.Response, err error, tryN int) error
+type ErrorHandler func(ctx context.Context, c *Client, req *http.Request, rsp *http.Response, err error, tryN int) error
 
 // New instantiates a client
-func New(l zerolog.Logger) (*Cli, error) {
+func New(l zerolog.Logger) (*Client, error) {
 	var err error
 
 	tr := &http.Transport{
@@ -73,7 +73,7 @@ func New(l zerolog.Logger) (*Cli, error) {
 		return nil, err
 	}
 
-	cli := &Cli{
+	cli := &Client{
 		id:         fmt.Sprintf("%d", time.Now().Unix()),
 		userAgents: []string{DefaultUA},
 		proxyURLs:  []string{},
@@ -95,23 +95,23 @@ func New(l zerolog.Logger) (*Cli, error) {
 	return cli, nil
 }
 
-func (c *Cli) Client() *http.Client {
+func (c *Client) Client() *http.Client {
 	return c.c
 }
 
-func (c *Cli) SetUserAgents(ua []string) {
+func (c *Client) SetUserAgents(ua []string) {
 	c.userAgents = ua
 }
 
-func (c *Cli) SetProxyURLs(urls []string) {
+func (c *Client) SetProxyURLs(urls []string) {
 	c.proxyURLs = urls
 }
 
-func (c *Cli) SetErrorHandler(fn ErrorHandler) {
+func (c *Client) SetErrorHandler(fn ErrorHandler) {
 	c.errorHandler = fn
 }
 
-func (c *Cli) SetMaxTries(n int) {
+func (c *Client) SetMaxTries(n int) {
 	if n < 1 {
 		n = 1
 	}
@@ -119,7 +119,7 @@ func (c *Cli) SetMaxTries(n int) {
 	c.maxTries = n
 }
 
-func (c *Cli) SetDumpDir(dir string) error {
+func (c *Client) SetDumpDir(dir string) error {
 	// Calculate dump directory
 	dumpDir, err := filepath.Abs(dir)
 	if err != nil {
@@ -136,7 +136,7 @@ func (c *Cli) SetDumpDir(dir string) error {
 	return nil
 }
 
-func (c *Cli) Reset() error {
+func (c *Client) Reset() error {
 	j, err := cookiejar.New(nil)
 	if err != nil {
 		return err
@@ -148,7 +148,7 @@ func (c *Cli) Reset() error {
 }
 
 // DumpTransaction dumps an HTTP transaction content into a file
-func (c *Cli) DumpTransaction(
+func (c *Client) DumpTransaction(
 	req *http.Request,
 	resp *http.Response,
 	reqBody, respBody []byte,
@@ -236,7 +236,7 @@ func (c *Cli) DumpTransaction(
 	}
 }
 
-func (c *Cli) newRequest(ctx context.Context, method, u string, header http.Header, body []byte) (*http.Request, error) {
+func (c *Client) newRequest(ctx context.Context, method, u string, header http.Header, body []byte) (*http.Request, error) {
 	if header == nil {
 		header = http.Header{}
 	}
@@ -267,7 +267,7 @@ func (c *Cli) newRequest(ctx context.Context, method, u string, header http.Head
 }
 
 // DoRequest performs an HTTP request
-func (c *Cli) DoRequest(
+func (c *Client) DoRequest(
 	ctx context.Context,
 	method,
 	u string,
@@ -366,7 +366,7 @@ func (c *Cli) DoRequest(
 }
 
 // Get perform a GET request
-func (c *Cli) Get(ctx context.Context, u string, args url.Values, header http.Header) ([]byte, error) {
+func (c *Client) Get(ctx context.Context, u string, args url.Values, header http.Header) ([]byte, error) {
 	if args != nil {
 		u = CombineURL(u, "", args)
 	}
@@ -376,7 +376,7 @@ func (c *Cli) Get(ctx context.Context, u string, args url.Values, header http.He
 }
 
 // GetQueryDoc performs a GET request and transform response into a goquery document
-func (c *Cli) GetQueryDoc(ctx context.Context, u string, args url.Values, header http.Header) (*goquery.Document, error) {
+func (c *Client) GetQueryDoc(ctx context.Context, u string, args url.Values, header http.Header) (*goquery.Document, error) {
 	body, err := c.Get(ctx, u, args, header)
 	if err != nil {
 		return nil, err
@@ -391,7 +391,7 @@ func (c *Cli) GetQueryDoc(ctx context.Context, u string, args url.Values, header
 }
 
 // GetJSON performs a GET HTTP request and parses the response into a JSON
-func (c *Cli) GetJSON(ctx context.Context, u string, args url.Values, header http.Header, target interface{}) error {
+func (c *Client) GetJSON(ctx context.Context, u string, args url.Values, header http.Header, target interface{}) error {
 	if header == nil {
 		header = http.Header{}
 	}
@@ -411,7 +411,7 @@ func (c *Cli) GetJSON(ctx context.Context, u string, args url.Values, header htt
 //
 // If fPath doesn't contain an extension, it will be added automatically.
 // In case of success file extension returned
-func (c *Cli) GetFile(ctx context.Context, u string, args url.Values, header http.Header, fPath string) (string, error) {
+func (c *Client) GetFile(ctx context.Context, u string, args url.Values, header http.Header, fPath string) (string, error) {
 	fExt := ""
 
 	if args != nil {
@@ -458,7 +458,7 @@ func (c *Cli) GetFile(ctx context.Context, u string, args url.Values, header htt
 }
 
 // Post performs a POST request
-func (c *Cli) Post(ctx context.Context, u string, header http.Header, body []byte) ([]byte, error) {
+func (c *Client) Post(ctx context.Context, u string, header http.Header, body []byte) ([]byte, error) {
 	if header == nil {
 		header = http.Header{}
 	}
@@ -468,7 +468,7 @@ func (c *Cli) Post(ctx context.Context, u string, header http.Header, body []byt
 }
 
 // PostForm posts a form
-func (c *Cli) PostForm(ctx context.Context, u string, args url.Values, header http.Header) ([]byte, error) {
+func (c *Client) PostForm(ctx context.Context, u string, args url.Values, header http.Header) ([]byte, error) {
 	if header == nil {
 		header = http.Header{}
 	}
@@ -479,7 +479,7 @@ func (c *Cli) PostForm(ctx context.Context, u string, args url.Values, header ht
 }
 
 // PostJSON posts a JSON request
-func (c *Cli) PostJSON(ctx context.Context, u string, header http.Header, data interface{}) ([]byte, error) {
+func (c *Client) PostJSON(ctx context.Context, u string, header http.Header, data interface{}) ([]byte, error) {
 	if header == nil {
 		header = http.Header{}
 	}
@@ -495,7 +495,7 @@ func (c *Cli) PostJSON(ctx context.Context, u string, header http.Header, data i
 }
 
 // PostFormParseJSON performs a POST request and parses JSON response
-func (c *Cli) PostFormParseJSON(ctx context.Context, u string, args url.Values, header http.Header, target interface{}) error {
+func (c *Client) PostFormParseJSON(ctx context.Context, u string, args url.Values, header http.Header, target interface{}) error {
 	if header == nil {
 		header = http.Header{}
 	}
@@ -509,7 +509,7 @@ func (c *Cli) PostFormParseJSON(ctx context.Context, u string, args url.Values, 
 }
 
 // PostJSONParseJSON performs a POST request having JSON body and parses JSON response
-func (c *Cli) PostJSONParseJSON(ctx context.Context, u string, data interface{}, header http.Header, target interface{}) error {
+func (c *Client) PostJSONParseJSON(ctx context.Context, u string, data interface{}, header http.Header, target interface{}) error {
 	if header == nil {
 		header = http.Header{}
 	}
@@ -527,7 +527,7 @@ func (c *Cli) PostJSONParseJSON(ctx context.Context, u string, data interface{},
 }
 
 // GetExtIPAddrInfo returns information about client's external IP address
-func (c *Cli) GetExtIPAddrInfo(ctx context.Context) (string, error) {
+func (c *Client) GetExtIPAddrInfo(ctx context.Context) (string, error) {
 	var (
 		b   []byte
 		r   string
