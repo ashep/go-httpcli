@@ -132,14 +132,16 @@ func (c *Client) SetDumpDir(dir string) error {
 		return fmt.Errorf("failed to create dump directory: %w", err)
 	}
 
+	c.dumpDir = dumpDir
 	c.l.Debug().Str("path", dumpDir).Msg("dump directory set")
+
 	return nil
 }
 
 func (c *Client) Reset() error {
 	j, err := cookiejar.New(nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("cookie jar new: %w", err)
 	}
 
 	c.c.Jar = j
@@ -277,7 +279,7 @@ func (c *Client) DoRequest(
 	var (
 		err     error
 		req     *http.Request
-		rsp     *http.Response
+		res     *http.Response
 		rspBody []byte
 	)
 
@@ -305,20 +307,30 @@ func (c *Client) DoRequest(
 			return nil, nil, err
 		}
 
-		rsp, err = c.c.Do(req)
-		if err == nil && rsp.StatusCode > 199 && rsp.StatusCode < 300 {
+		res, err = c.c.Do(req)
+		if err == nil && res.StatusCode > 199 && res.StatusCode < 300 {
 			break
 		} else if err == nil {
-			err = errors.New(rsp.Status)
+			err = errors.New(res.Status)
 		}
-		c.l.Error().Int32("req_n", reqNum).Int("try_n", tryNum).Str("method", method).Str("url", u).Err(err).
+
+		c.l.Error().
+			Err(err).
+			Int32("req_n", reqNum).
+			Int("try_n", tryNum).
+			Str("method", method).
+			Str("url", u).
 			Msg("failed to perform a request")
 
-		if rsp != nil {
-			if rb, re := io.ReadAll(rsp.Body); re == nil && c.dumpDir != "" {
-				c.DumpTransaction(req, rsp, body, rb, tryNum)
+		if res != nil && c.dumpDir != "" {
+			resBody, resErr := io.ReadAll(res.Body)
+			if resErr == nil {
+				c.DumpTransaction(req, res, body, resBody, tryNum)
 			}
-			_ = rsp.Body.Close()
+		}
+
+		if res != nil {
+			_ = res.Body.Close()
 		}
 
 		if c.errorHandler != nil {
@@ -328,11 +340,12 @@ func (c *Client) DoRequest(
 
 			c.mux.Lock()
 			c.handlingError = true
-			hErr := c.errorHandler(context.WithValue(ctx, "errorHandler", true), c, req, rsp, err, tryNum)
+			hErr := c.errorHandler(context.WithValue(ctx, "errorHandler", true), c, req, res, err, tryNum)
 			c.handlingError = false
 			c.mux.Unlock()
+
 			if hErr != nil {
-				return nil, nil, fmt.Errorf("%v, %v", err, hErr)
+				return nil, nil, fmt.Errorf("%w, %w", err, hErr)
 			}
 		}
 
@@ -343,26 +356,31 @@ func (c *Client) DoRequest(
 		time.Sleep(time.Second * time.Duration(tryNum))
 	}
 
-	c.l.Debug().Int32("req_n", reqNum).Int("try_n", tryNum).Str("method", method).Str("url", u).
-		Str("status", rsp.Status).Msg("request ok")
+	c.l.Debug().
+		Int32("req_n", reqNum).
+		Int("try_n", tryNum).
+		Str("method", method).
+		Str("url", u).
+		Str("status", res.Status).
+		Msg("request ok")
 
 	defer func() {
-		_ = rsp.Body.Close()
+		_ = res.Body.Close()
 	}()
-	if rspBody, err = io.ReadAll(rsp.Body); err != nil {
-		return rsp, nil, fmt.Errorf("failed to read response body: %v", err)
+	if rspBody, err = io.ReadAll(res.Body); err != nil {
+		return res, nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	if c.dumpDir != "" {
-		c.DumpTransaction(req, rsp, body, rspBody, tryNum)
+		c.DumpTransaction(req, res, body, rspBody, tryNum)
 	}
 
 	// Check response status
-	if rsp.StatusCode >= 400 {
-		return rsp, rspBody, fmt.Errorf("HTTP response status: %v", rsp.Status)
+	if res.StatusCode >= 400 {
+		return res, rspBody, fmt.Errorf("HTTP response status: %v", res.Status)
 	}
 
-	return rsp, rspBody, err
+	return res, rspBody, err
 }
 
 // Get perform a GET request
