@@ -48,9 +48,7 @@ type Client struct {
 type ErrorHandler func(ctx context.Context, c *Client, req *http.Request, rsp *http.Response, err error, tryN int) error
 
 // New instantiates a client
-func New(l zerolog.Logger) (*Client, error) {
-	var err error
-
+func New(l zerolog.Logger) *Client {
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -68,10 +66,7 @@ func New(l zerolog.Logger) (*Client, error) {
 		Timeout:   60 * time.Second,
 	}
 
-	c.Jar, err = cookiejar.New(&cookiejar.Options{})
-	if err != nil {
-		return nil, err
-	}
+	c.Jar, _ = cookiejar.New(&cookiejar.Options{})
 
 	cli := &Client{
 		id:         fmt.Sprintf("%d", time.Now().Unix()),
@@ -92,7 +87,7 @@ func New(l zerolog.Logger) (*Client, error) {
 		return nil, nil
 	}
 
-	return cli, nil
+	return cli
 }
 
 func (c *Client) Client() *http.Client {
