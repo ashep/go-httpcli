@@ -278,7 +278,7 @@ func (c *Client) DoRequest(
 		rspBody []byte
 	)
 
-	reqNum := c.reqNum
+	reqNum := atomic.LoadInt32(&c.reqNum)
 	tryNum := 1
 	for ; ; tryNum++ {
 		select {
