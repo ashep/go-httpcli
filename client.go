@@ -309,7 +309,7 @@ func (c *Client) DoRequest(
 			err = errors.New(res.Status)
 		}
 
-		c.l.Error().
+		c.l.Warn().
 			Err(err).
 			Int32("req_n", reqNum).
 			Int("try_n", tryNum).
